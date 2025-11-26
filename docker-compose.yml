@@ -1,0 +1,164 @@
+version: "3.9"
+
+name: crowd
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crowd
+      POSTGRES_PASSWORD: crowdpass
+      POSTGRES_DB: crowd
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crowd -d crowd"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [crowd]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [crowd]
+
+  backend:
+    image: crowddotdev/backend:${CROWD_TAG:-latest}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      # DB / cache
+      DATABASE_URL: postgres://crowd:crowdpass@postgres:5432/crowd
+      REDIS_URL: redis://redis:6379
+      # Secrets (CHANGE THESE)
+      JWT_SECRET: "change-this-long-random-string"
+      AUTH_TOKEN_SALT: "change-this-too"
+      # Optional telemetry / extras (uncomment if you use them)
+      # SENTRY_DSN: ""
+      # LOG_LEVEL: "info"
+    ports:
+      - "4000:4000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    networks: [crowd]
+
+  # Optional workers that process activities, schedules, webhooks, scripts.
+  activities_worker:
+    image: crowddotdev/activities-worker:${CROWD_TAG:-latest}
+    depends_on:
+      backend:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://crowd:crowdpass@postgres:5432/crowd
+      REDIS_URL: redis://redis:6379
+    restart: unless-stopped
+    networks: [crowd]
+
+  cron_service:
+    image: crowddotdev/cron-service:${CROWD_TAG:-latest}
+    depends_on:
+      backend:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://crowd:crowdpass@postgres:5432/crowd
+      REDIS_URL: redis://redis:6379
+    restart: unless-stopped
+    networks: [crowd]
+
+  webhook_api:
+    image: crowddotdev/webhook-api:${CROWD_TAG:-latest}
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 4001
+      DATABASE_URL: postgres://crowd:crowdpass@postgres:5432/crowd
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "4001:4001"
+    restart: unless-stopped
+    networks: [crowd]
+
+  script_executor:
+    image: crowddotdev/script-executor:${CROWD_TAG:-latest}
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://crowd:crowdpass@postgres:5432/crowd
+      REDIS_URL: redis://redis:6379
+    restart: unless-stopped
+    networks: [crowd]
+
+  # Optional analytics API (Cube.js) if you plan to use it.
+  cubejs:
+    image: crowddotdev/cubejs:${CROWD_TAG:-latest}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      CUBEJS_DB_TYPE: postgres
+      CUBEJS_DB_HOST: postgres
+      CUBEJS_DB_NAME: crowd
+      CUBEJS_DB_USER: crowd
+      CUBEJS_DB_PASS: crowdpass
+      CUBEJS_DEV_MODE: "false"
+      PORT: 4006
+    ports:
+      - "4006:4006"
+    restart: unless-stopped
+    networks: [crowd]
+
+  frontend:
+    image: crowddotdev/frontend:${CROWD_TAG:-latest}
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      # One of these is typically read by the built frontend; include both to cover variants.
+      VITE_BACKEND_URL: "http://backend:4000"
+      NEXT_PUBLIC_API_URL: "http://backend:4000"
+    ports:
+      # The image usually serves on port 80 internally
+      - "8081:80"
+    restart: unless-stopped
+    networks: [crowd]
+
+volumes:
+  pgdata:
+  redisdata:
+
+networks:
+  crowd:
+    driver: bridge
