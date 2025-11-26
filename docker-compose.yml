@@ -45,13 +45,15 @@ services:
       DATABASE_URL: postgres://crowd:crowdpass@postgres:5432/crowd
       REDIS_URL: redis://redis:6379
       # Secrets (CHANGE THESE)
-      JWT_SECRET: "change-this-long-random-string"
-      AUTH_TOKEN_SALT: "change-this-too"
+      JWT_SECRET: "${JWT_SECRET}"
+      AUTH_TOKEN_SALT: "${AUTH_TOKEN_SALT}"
+      CROWD_SEARCH_ENGINE_HOST: http://localhost:7701
+      CROWD_SEARCH_ENGINE_API_KEY: ${CROWD_SEARCH_ENGINE_API_KEY}
       # Optional telemetry / extras (uncomment if you use them)
       # SENTRY_DSN: ""
-      # LOG_LEVEL: "info"
+      LOG_LEVEL: "info"
     ports:
-      - "4000:4000"
+      - "4400:4000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health || exit 1"]
@@ -104,7 +106,7 @@ services:
       DATABASE_URL: postgres://crowd:crowdpass@postgres:5432/crowd
       REDIS_URL: redis://redis:6379
     ports:
-      - "4001:4001"
+      - "4401:4001"
     restart: unless-stopped
     networks: [crowd]
 
@@ -134,12 +136,12 @@ services:
       CUBEJS_DB_USER: crowd
       CUBEJS_DB_PASS: crowdpass
       CUBEJS_DEV_MODE: "false"
-      CUBEJS_API_SECRET: 137ea167812145c6d77452a58d7dd29b
+      CUBEJS_API_SECRET: "${CUBEJS_API_SECRET}"
       CUBEJS_EXTERNAL_DEFAULT: "true"
       CUBEJS_SCHEDULED_REFRESH_DEFAULT: "true"
       PORT: 4006
     ports:
-      - "4006:4006"
+      - "4406:4006"
     restart: unless-stopped
     networks: [crowd]
 
@@ -152,6 +154,17 @@ services:
       # One of these is typically read by the built frontend; include both to cover variants.
       VITE_BACKEND_URL: "http://backend:4000"
       NEXT_PUBLIC_API_URL: "http://backend:4000"
+      VUE_APP_EDITION: community
+      VUE_APP_COMMUNITY_PREMIUM: "false"
+      VUE_APP_BACKEND_URL: /api
+      VUE_APP_WEBSOCKETS_URL: "ws://localhost:8080"
+      VUE_APP_FRONTEND_HOST: "localhost:8081"
+      VUE_APP_FRONTEND_PROTOCOL: http
+      VUE_APP_GITHUB_INSTALLATION_URL:
+      VUE_APP_DISCORD_INSTALLATION_URL:
+      VUE_APP_CUBEJS_URL: "http://localhost:4000"
+      VUE_APP_CONVERSATIONS_PUBLIC_URL: "http://localhost:3000"
+      VUE_APP_NANGO_URL: "http://localhost:3003"
     ports:
       # The image usually serves on port 80 internally
       - "8281:80"
