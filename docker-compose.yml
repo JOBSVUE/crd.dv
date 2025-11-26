@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: crowdpass
       POSTGRES_DB: crowd
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - crowddotdev_pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U crowd -d crowd"]
       interval: 10s
@@ -23,7 +23,7 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     restart: unless-stopped
     volumes:
-      - redisdata:/data
+      - crowddotdev_redisdata:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -151,13 +151,13 @@ services:
       NEXT_PUBLIC_API_URL: "http://backend:4000"
     ports:
       # The image usually serves on port 80 internally
-      - "8081:80"
+      - "8281:80"
     restart: unless-stopped
     networks: [crowd]
 
 volumes:
-  pgdata:
-  redisdata:
+  crowddotdev_pgdata:
+  crowddotdev_redisdata:
 
 networks:
   crowd:
